@@ -1,0 +1,4 @@
+youkuvideo
+==========
+
+plugin.video.youkuvideo
