@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addon id="plugin.video.youkuvideo" name="YouKu Video" version="0.1" provider-name="tacy.lee">
+  <requires>
+    <import addon="xbmc.python" version="2.1.0"/>
+    <import addon="script.module.xbmcswift2" version="2.4.0"/>
+    <import addon="script.module.request" version="1.1.0"/>
+  </requires>
+  <extension point="xbmc.python.pluginsource" library="addon.py">
+    <provides>video</provides>
+  </extension>
+  <extension point="xbmc.addon.metadata">
+    <platform>all</platform>
+    <language></language>
+    <summary>YouKu Video</summary>
+    <description>YouKu is china's largest video sharing site, YoukuVideo plugin support all channels play, catagory and stream type select.</description>
+  </extension>
+</addon>
