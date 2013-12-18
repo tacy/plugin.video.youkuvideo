@@ -33,14 +33,8 @@ def showmovie(url):
     show movie list
     """
     #filter key, e.g. 'http://www.youku.com/v_showlist/c90'
-    key = url.replace('.html', '').replace('change', '')
-    if len(key) > 40:
-        keys = key.split('_')
-        if 'v_olist' in url:
-            key = '{0}_{1}_{2}'.format(keys[0], keys[1], keys[2])
-        else:
-            key = '{0}_{1}'.format(keys[0], keys[1])
-
+    urlsps = re.findall(r'(.*?/[a-z]_*\d+)', url)
+    key = urlsps[0]
     #filter movie by filters
     if 'change' in url:
         url = key
@@ -66,17 +60,18 @@ def showmovie(url):
                                  filterstr.group(1), re.S)
         types = OrderedDict()
         for filtertype in filtertypes[1:]:
-            typeitems = re.findall(r'(_[a-z]+_[^_]+?).html">(.*?)</a>',
-                                   filtertype[1], re.S)
+            typeitems = re.findall(r'(_*[a-z]+_*[^_]+?).html">(.*?)</a>',
+                                       filtertype[1], re.S)
             typeitems.insert(0, ('', '全部'))
             types[filtertype[0]] = typeitems
         yksorts = re.findall(r'yk-sort-item(.*?)/ul>', result.content, re.S)
         for seq, yksort in enumerate(yksorts):
-            if not seq:
-                sortitems = re.findall(r'(_s_\d).*?>(.*?)</a>', yksort)
+            if 'v_olist' in key:
+                sorts = re.findall(r'(_s_\d+)(_d_\d+).*?>(.*?)</a>', yksort)
+                types['排序{0}'.format(seq)] = [(s[seq], s[2]) for s in sorts]
             else:
-                sortitems = re.findall(r'(_d_\d).*?>(.*?)</a>', yksort)
-            types['排序{0}'.format(seq)] = sortitems
+                sorts = re.findall(r'(d\d+)(s\d+).*?>(.*?)</a>', yksort)
+                types['排序{0}'.format(seq)] = [(s[not seq], s[2]) for s in sorts]
         filters[key] = types
 
     #get movie list
