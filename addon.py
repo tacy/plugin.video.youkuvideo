@@ -104,8 +104,8 @@ def showmovie(url):
 
         #add fliter item
         pagetitle = '【第{0}页/共{1}页】【[COLOR FFFF0000]过滤条件选择)[/COLOR]】'
-        movies.insert(0, ('', pagetitle.format(cpg[0], tpg[0]), '',
-                          '{0}change'.format(url)))
+        movies.insert(0, ('', pagetitle.format(cpg[0], tpg[0] if tpg else '1'),
+                          '', '{0}change'.format(url)))
     maptuple = (('olist', 'showmovie'), ('showlist', 'showmovie'),
                 ('show_page', 'showepisode'), ('v_show/', 'playmovie'))
     menus = []
