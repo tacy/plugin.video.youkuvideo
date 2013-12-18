@@ -12,6 +12,6 @@
     <platform>all</platform>
     <language></language>
     <summary>YouKu Video</summary>
-    <description>YouKu is china's largest video sharing site, YoukuVideo plugin support all channels play, catagory and stream type select.</description>
+    <description>YouKu is china's largest video sharing site, YoukuVideo plugin support all channels play, catagory and stream type select. please submit bug or issue to http://github.com/tacy/plugin.video.youkuvideo</description>
   </extension>
 </addon>
