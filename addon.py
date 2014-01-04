@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 import re
 import json
-import requests
+import urllib2
 from collections import OrderedDict
+from cStringIO import StringIO
 from xbmcswift2 import Plugin
 from xbmcswift2 import xbmcgui
 
@@ -16,9 +17,10 @@ def showcatalog():
     """
     show catalog list
     """
-    result = requests.get('http://www.youku.com/v/')
+    result = _http('http://www.youku.com/v/')
+    print result
     catastr = re.search(r'yk-filter-panel">(.*?)yk-filter-handle',
-                        result.content, re.S)
+                        result, re.S)
     catalogs = re.findall(r'href="(.*?)".*?>(.*?)</a>', catastr.group(1))
     menus = [{
         'label': catalog[-1].decode('utf-8'),
@@ -47,7 +49,7 @@ def showmovie(url):
         url='{0}.html'.format(url)
         print '*'*80, url
 
-    result = requests.get(url)
+    result = _http(url)
 
     #get catalog filter list, filter will be cache
     #filters item example:
@@ -55,7 +57,7 @@ def showmovie(url):
     #   value: '{'地区':('_a_大陆', '大陆', ...)}
     if key not in filters:
         filterstr = re.search(r'yk-filter-panel">(.*?)yk-filter-handle',
-                            result.content, re.S)
+                            result, re.S)
         filtertypes = re.findall(r'<label>(.*?)<.*?<ul>(.*?)</ul>',
                                  filterstr.group(1), re.S)
         types = OrderedDict()
@@ -64,7 +66,7 @@ def showmovie(url):
                                        filtertype[1], re.S)
             typeitems.insert(0, ('', '全部'))
             types[filtertype[0]] = typeitems
-        yksorts = re.findall(r'yk-sort-item(.*?)/ul>', result.content, re.S)
+        yksorts = re.findall(r'yk-sort-item(.*?)/ul>', result, re.S)
         for seq, yksort in enumerate(yksorts):
             if 'v_olist' in key:
                 sorts = re.findall(r'(_s_\d+)(_d_\d+).*?>(.*?)</a>', yksort)
@@ -78,13 +80,13 @@ def showmovie(url):
     mstr = r'{0}{1}{2}'.format('[vp]-thumb">\s+<img src="(.*?)" alt="(.*?)">',
                                '.*?"[pv]-thumb-tag[lr]b"><.*?">([^<]+?)',
                                '<.*?"[pv]-link">\s+<a href="(.*?)"')
-    movies = re.findall(mstr, result.content, re.S)
+    movies = re.findall(mstr, result, re.S)
     #deduplication movie item
     #movies = [(k,v) for k,v in OrderedDict(movies).iteritems()]
 
     #add pre/next item
     pagestr = re.search(r'class="yk-pages">(.*?)</ul>',
-                        result.content, re.S)
+                        result, re.S)
     if pagestr:
         pre = re.findall(r'class="prev" title="(.*?)">\s*<a href="(.*?)"',
                          pagestr.group(1))
@@ -120,27 +122,27 @@ def showepisode(url):
     """
     show episodes list
     """
-    result = requests.get(url)
+    result = _http(url)
     episodestr = re.search(r'id="episode_wrap">(.*?)<div id="point_wrap',
-                           result.content, re.S)
+                           result, re.S)
     patt = re.compile(r'(http://v.youku.com/v_show/.*?.html)".*?>([^<]+?)</a')
     episodes = patt.findall(episodestr.group(1))
 
     #some catalog not episode, e.g. most movie
     if not episodes:
-        playurl = re.search(r'class="btnplay" href="(.*?)"', result.content)
+        playurl = re.search(r'class="btnplay" href="(.*?)"', result)
         if not playurl:
-            playurl = re.search(r'btnplayposi".*?"(http:.*?)"', result.content)
+            playurl = re.search(r'btnplayposi".*?"(http:.*?)"', result)
         if not playurl:
-            playurl = re.search(r'btnplaytrailer.*?(http:.*?)"', result.content)
+            playurl = re.search(r'btnplaytrailer.*?(http:.*?)"', result)
         playmovie(playurl.group(1))
     else:
-        elists = re.findall(r'<li data="(reload_\d+)" >', result.content)
+        elists = re.findall(r'<li data="(reload_\d+)" >', result)
         epiurlpart = url.replace('page', 'episode')
         for elist in elists:
             epiurl = epiurlpart + '?divid={0}'.format(elist)
-            result = requests.get(epiurl)
-            epimore = patt.findall(result.content)
+            result = _http(epiurl)
+            epimore = patt.findall(result)
             episodes.extend(epimore)
 
         menus = [{
@@ -159,8 +161,8 @@ def playmovie(url):
     #get movie metadata (json format)
     vid = url[-18:-5]
     moviesurl="http://v.youku.com/player/getPlayList/VideoIDS/{0}".format(vid)
-    result = requests.get(moviesurl)
-    movinfo = json.loads(result.content.replace('\r\n',''))
+    result = _http(moviesurl)
+    movinfo = json.loads(result.replace('\r\n',''))
     movdat = movinfo['data'][0]
     streamfids = movdat['streamfileids']
     stype = 'flv'
@@ -212,6 +214,19 @@ def getfileid(streamid, seed):
     for item in attr:
         res +=  mixstr[int(item)]
     return res
+
+def _http(url):
+    """
+    open url
+    """
+    req = urllib2.Request(url)
+    req.add_header('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) {0}{1}'.
+                   format('AppleWebKit/537.36 (KHTML, like Gecko) ',
+                          'Chrome/28.0.1500.71 Safari/537.36'))
+    conn = urllib2.urlopen(req)
+    content = conn.read()
+    conn.close()
+    return content
 
 if __name__ == '__main__':
     #filters.clear()
