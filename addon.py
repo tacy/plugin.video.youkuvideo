@@ -2,10 +2,10 @@
 import re
 import json
 import urllib2
-from collections import OrderedDict
-from cStringIO import StringIO
 from xbmcswift2 import Plugin
 from xbmcswift2 import xbmcgui
+from ChineseKeyboard import Keyboard
+from resources.lib.collections_backport import OrderedDict
 
 plugin = Plugin()
 dialog = xbmcgui.Dialog()
@@ -18,7 +18,6 @@ def showcatalog():
     show catalog list
     """
     result = _http('http://www.youku.com/v/')
-    print result
     catastr = re.search(r'yk-filter-panel">(.*?)yk-filter-handle',
                         result, re.S)
     catalogs = re.findall(r'href="(.*?)".*?>(.*?)</a>', catastr.group(1))
@@ -27,7 +26,23 @@ def showcatalog():
         'path': plugin.url_for('showmovie',
                             url='http://www.youku.com{0}'.format(catalog[0])),
     } for catalog in catalogs]
+    menus.insert(0, {'label': '【搜索视频】选择', 'path': plugin.url_for(
+        'searchvideo', url='http://www.soku.com/search_video/q_')})
     return menus
+
+@plugin.route('/search/<url>')
+def searchvideo(url):
+    """
+    search video
+    """
+    kb = Keyboard('',u'请输入搜索关键字')
+    kb.doModal()
+    if kb.isConfirmed():
+        searchStr = kb.getText()
+        url = url + urllib2.quote(searchStr)
+    result = _http(url)
+
+    pass
 
 @plugin.route('/movies/<url>')
 def showmovie(url):
