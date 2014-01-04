@@ -2,6 +2,7 @@
 import re
 import json
 import urllib2
+from xbmcswift2 import xbmc
 from xbmcswift2 import Plugin
 from xbmcswift2 import xbmcgui
 from ChineseKeyboard import Keyboard
@@ -35,6 +36,7 @@ def searchvideo(url):
     search video
     """
     kb = Keyboard('',u'请输入搜索关键字')
+    xbmc.sleep(1500)
     kb.doModal()
     if kb.isConfirmed():
         searchStr = kb.getText()
@@ -59,6 +61,12 @@ def searchvideo(url):
                               'path': plugin.url_for(
                                   'showsearch', url=str(ress)),
                               'thumbnail': items[0][1], })
+        if 'class="movie"' in movitem:
+            items = re.findall(r'btnplay_s.*?href="(.*?)".*?_log_title="(.*?)"',
+                               movitem, re.S)
+            if items:
+                menus.append({'label': items[0][1], 'path':
+                              plugin.url_for('playmovie', url=items[0][0]),})
     return menus
 
 @plugin.route('/showsearch/<url>')
