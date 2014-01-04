@@ -11,7 +11,6 @@ plugin = Plugin()
 dialog = xbmcgui.Dialog()
 filters = plugin.get_storage('ftcache')
 
-
 @plugin.route('/')
 def showcatalog():
     """
@@ -30,7 +29,7 @@ def showcatalog():
         'searchvideo', url='http://www.soku.com/search_video/q_')})
     return menus
 
-@plugin.route('/search/<url>')
+@plugin.route('/searchvideo/<url>')
 def searchvideo(url):
     """
     search video
@@ -41,8 +40,34 @@ def searchvideo(url):
         searchStr = kb.getText()
         url = url + urllib2.quote(searchStr)
     result = _http(url)
+    movstr = re.findall(r'<div class="item">(.*?)<!--item end-->', result, re.S)
+    menus = []
+    tvpatt = re.compile(
+        r'{0}{1}'.format('p_link">.*?title="(.*?)".*?p_thumb.*?src="(.*?)"',
+                         '.*?status="(.*?)"'), re.S)
+    for movitem in movstr:
+        if 'p_ispaid' in movitem: pass
+        if 'class="tv"' in movitem:
+            items = tvpatt.findall(movitem)
+            if items:
+                ress = re.findall(
+                    r"<li><a href='(http://v.youku.*?)'.*?>(.*?)</a>", movitem)
+                print ress
+                print items
+                menus.append({'label': '{0}【{1}】'.format(items[0][0],
+                                                       items[0][2]),
+                              'path': plugin.url_for(
+                                  'showsearch', url=str(ress)),
+                              'thumbnail': items[0][1], })
+    return menus
 
-    pass
+@plugin.route('/showsearch/<url>')
+def showsearch(url):
+    items = eval(url)
+    menus = [{'label': item[1],
+              'path': plugin.url_for('playmovie', url=item[0]),
+          } for item in items]
+    return menus
 
 @plugin.route('/movies/<url>')
 def showmovie(url):
