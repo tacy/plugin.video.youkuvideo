@@ -53,20 +53,18 @@ def searchvideo(url):
             items = tvpatt.findall(movitem)
             if items:
                 ress = re.findall(
-                    r"<li><a href='(http://v.youku.*?)'.*?>(.*?)</a>", movitem)
-                print ress
-                print items
-                menus.append({'label': '{0}【{1}】'.format(items[0][0],
-                                                       items[0][2]),
-                              'path': plugin.url_for(
-                                  'showsearch', url=str(ress)),
-                              'thumbnail': items[0][1], })
+                    r"<li><a href='(http://v.you.*?html).*?>(.*?)</a>", movitem)
+                menus.append(
+                    {'label': '{0}【{1}】'.format(items[0][0], items[0][2]),
+                     'path': plugin.url_for('showsearch', url=str(ress)),
+                     'thumbnail': items[0][1], })
         if 'class="movie"' in movitem:
-            items = re.findall(r'btnplay_s.*?href="(.*?)".*?_log_title="(.*?)"',
-                               movitem, re.S)
+            items = re.findall(
+                r'btnplay_s.*?href="(.*?html).*?title="(.*?)"', movitem, re.S)
             if items:
-                menus.append({'label': items[0][1], 'path':
-                              plugin.url_for('playmovie', url=items[0][0]),})
+                menus.append({
+                    'label': items[0][1],
+                    'path': plugin.url_for('playmovie', url=items[0][0]),})
     return menus
 
 @plugin.route('/showsearch/<url>')

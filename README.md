@@ -7,4 +7,4 @@ youkuvideo is a xbmc plugin, you can be play youku video online ,support all cha
 
 Dependences
 -----
-youkuvideo dependences request and xbmcswift2
+youkuvideo dependences xbmcswift2
