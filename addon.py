@@ -10,7 +10,7 @@ from resources.lib.collections_backport import OrderedDict
 
 plugin = Plugin()
 dialog = xbmcgui.Dialog()
-filters = plugin.get_storage('ftcache')
+filters = plugin.get_storage('ftcache', TTL=1440)
 
 @plugin.route('/')
 def showcatalog():
@@ -47,13 +47,14 @@ def searchvideo(url):
     tvpatt = re.compile(
         r'{0}{1}'.format('p_link">.*?title="(.*?)".*?p_thumb.*?src="(.*?)"',
                          '.*?status="(.*?)"'), re.S)
+    tvress = '{0}{1}'.format(r"<li(?: .*?(?:e|x)(?:x|e)\")?>",
+                             r"<a href='(http://v.you.*?html).*?>(.*?)</a>")
     for movitem in movstr:
         if 'p_ispaid' in movitem: pass
         if 'class="tv"' in movitem:
             items = tvpatt.findall(movitem)
             if items:
-                ress = re.findall(
-                    r"<li><a href='(http://v.you.*?html).*?>(.*?)</a>", movitem)
+                ress = re.findall(tvress, movitem)
                 menus.append(
                     {'label': '{0}【{1}】'.format(items[0][0], items[0][2]),
                      'path': plugin.url_for('showsearch', url=str(ress)),
@@ -70,9 +71,10 @@ def searchvideo(url):
 @plugin.route('/showsearch/<url>')
 def showsearch(url):
     items = eval(url)
+    itemsdedup = sorted(list(set(items)), key=lambda item: int(item[1]))
     menus = [{'label': item[1],
               'path': plugin.url_for('playmovie', url=item[0]),
-          } for item in items]
+          } for item in itemsdedup]
     return menus
 
 @plugin.route('/movies/<url>')
