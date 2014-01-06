@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import os
+import sys
 import re
 import json
 import urllib2
@@ -6,7 +8,7 @@ from xbmcswift2 import xbmc
 from xbmcswift2 import Plugin
 from xbmcswift2 import xbmcgui
 from ChineseKeyboard import Keyboard
-from resources.lib.collections_backport import OrderedDict
+from collections_backport import OrderedDict
 
 plugin = Plugin()
 dialog = xbmcgui.Dialog()
