@@ -49,34 +49,53 @@ def searchvideo(url):
     tvpatt = re.compile(
         r'{0}{1}'.format('p_link">.*?title="(.*?)".*?p_thumb.*?src="(.*?)"',
                          '.*?status="(.*?)"'), re.S)
-    tvress = '{0}{1}'.format(r"<li(?: .*?(?:e|x)(?:x|e)\")?>",
-                             r"<a href='(http://v.you.*?html).*?>(.*?)</a>")
+    lppatt = re.compile(r"linkpanels [\w ]+['\"]\s?>(.*?)class=\"clear\"", re.S)
+    acpatt = re.compile(r'accordion [\w ]+"\s?(?:id=.*?)?>(.*?)div slls>', re.S)
+    epspatt = re.compile(
+        r'{0}{1}'.format("<li(?: .*?(?:e|x)(?:x|e)\")?>.*?(http:.*?html).*?",
+                         "site='(\w+)'.*?>(.*?)</a>"), re.S)
     for movitem in movstr:
         if 'p_ispaid' in movitem: pass
-        if 'class="tv"' in movitem:
-            items = tvpatt.findall(movitem)
-            if items:
-                ress = re.findall(tvress, movitem)
-                menus.append(
-                    {'label': '{0}【{1}】'.format(items[0][0], items[0][2]),
-                     'path': plugin.url_for('showsearch', url=str(ress)),
-                     'thumbnail': items[0][1], })
+        if 'class="tv"' in movitem or 'class="zy"' in movitem:
+            tv = tvpatt.findall(movitem)
+            sitepanel = lppatt.findall(movitem)
+            if not sitepanel:
+                sitepanel = acpatt.findall(movitem)
+            if 'class="tv"' in movitem:
+                epss = epspatt.findall(sitepanel[0])
+            else:
+                epss = re.findall(r'(http://.*?html).*?>([\w "]+?)</a>',
+                                  sitepanel[0].decode('utf-8'), re.U)
+                print epss
+                epss = reversed([(k, v) for k,v in OrderedDict(reversed(epss)).
+                                 iteritems() if u'查看全部' not in v])
+                epss = [(v[0], v[0].split('.')[1], v[1]) for v in epss]
+            menus.append(
+                {'label': '{0}【{1}】'.format(tv[0][0], tv[0][2]),
+                 'path': plugin.url_for('showsearch', url=str(epss)),
+                 'thumbnail': tv[0][1], })
         if 'class="movie"' in movitem:
             items = re.findall(
-                r'btnplay_s.*?href="(.*?html).*?title="(.*?)"', movitem, re.S)
+                r'btnplay_s.*?(http:.*?html).*?title="(.*?)"', movitem, re.S)
             if items:
+                site = items[0][0].split('.')[1]
                 menus.append({
                     'label': items[0][1],
-                    'path': plugin.url_for('playmovie', url=items[0][0]),})
+                    'path': plugin.url_for(
+                        'playsearch', url=items[0][0], source=site)})
     return menus
 
 @plugin.route('/showsearch/<url>')
 def showsearch(url):
+    """
+    url: 0 is url, 1 is play site, 2 is title
+    """
     items = eval(url)
-    itemsdedup = sorted(list(set(items)), key=lambda item: int(item[1]))
-    menus = [{'label': item[1],
-              'path': plugin.url_for('playmovie', url=item[0]),
-          } for item in itemsdedup]
+    if len(items)>100:
+        items = sorted(list(set(items)), key=lambda item: int(item[2]))
+    menus = [{'label': item[2],
+              'path': plugin.url_for('playsearch', url=item[0], source=item[1]),
+          } for item in items]
     return menus
 
 @plugin.route('/movies/<url>')
@@ -202,68 +221,20 @@ def showepisode(url):
         return menus
 
 @plugin.route('/play/<url>')
-def playmovie(url):
+@plugin.route('/play/<url>/<source>', name='playsearch')
+def playmovie(url, source='youku'):
     """
     play movie
     """
-    stypes = OrderedDict((('原画', 'hd3'), ('超清', 'hd2'),
-                          ('高清', 'mp4'), ('标清', 'flv')))
-    #get movie metadata (json format)
-    vid = url[-18:-5]
-    moviesurl="http://v.youku.com/player/getPlayList/VideoIDS/{0}".format(vid)
-    result = _http(moviesurl)
-    movinfo = json.loads(result.replace('\r\n',''))
-    movdat = movinfo['data'][0]
-    streamfids = movdat['streamfileids']
-    stype = 'flv'
-
-    # user select streamtype
-    if len(streamfids) > 1:
-        selstypes = [k for k,v in stypes.iteritems() if v in streamfids]
-        selitem = dialog.select('清晰度', selstypes)
-        if selitem is not -1:
-            stype = stypes[selstypes[selitem]]
-
-    #stream file format type is mp4 or flv
-    ftype = 'mp4' if stype is 'mp4' else 'flv'
-    fileid = getfileid(streamfids[stype], int(movdat['seed']))
-    movsegs = movdat['segs'][stype]
-    rooturl = 'http://f.youku.com/player/getFlvPath/sid/00_00/st'
-    segurls = []
-    for movseg in movsegs:
-        #youku split stream file to seg
-        segid = '{0}{1:02X}{2}'.format(fileid[0:8],
-                                       int(movseg['no']) ,fileid[10:])
-        kstr = movseg['k']
-        segurl = '{0}/{1}/fileid/{2}?K={3}'.format(rooturl, ftype, segid, kstr)
-        segurls.append(segurl)
-    movurl = 'stack://{0}'.format(' , '.join(segurls))
+    playutil = PlayUtil(url, source)
+    movurl = getattr(playutil, source, playutil.notsup)()
+    if 'not support' in movurl:
+        xbmcgui.Dialog().ok(
+            '提示框', '不支持的播放源,目前支持youku/sohu/iqiyi/pps/letv/tudou')
+        pass
     listitem=xbmcgui.ListItem()
     listitem.setInfo(type="Video", infoLabels={'Title': 'c'})
     xbmc.Player().play(movurl, listitem)
-
-def getfileid(streamid, seed):
-    """
-    get dynamic stream file id
-    Arguments:
-    - `streamid`: e.g. '48*60*21*...*13*'
-    - `seed`: mix str seed
-    """
-    source = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'\
-             '/\\:._-1234567890'
-    index = 0
-    mixed = []
-    for i in range(len(source)):
-        seed = (seed * 211 + 30031) % 65536
-        index =  seed * len(source) / 65536
-        mixed.append(source[index])
-        source = source.replace(source[index],"")
-    mixstr = ''.join(mixed)
-    attr = streamid[:-1].split('*')
-    res = ""
-    for item in attr:
-        res +=  mixstr[int(item)]
-    return res
 
 def _http(url):
     """
@@ -277,6 +248,167 @@ def _http(url):
     content = conn.read()
     conn.close()
     return content
+
+
+class PlayUtil(object):
+    def __init__(self, url, source='youku'):
+        self.url = url
+        self.source = source
+        dialog = xbmcgui.Dialog()
+
+    def notsup(self):
+        print '*'*20, source
+        return 'not support'
+
+    def youku(self):
+        stypes = OrderedDict((('原画', 'hd3'), ('超清', 'hd2'),
+                              ('高清', 'mp4'), ('标清', 'flv')))
+        #get movie metadata (json format)
+        vid = self.url[-18:-5]
+        moviesurl="http://v.youku.com/player/getPlayList/VideoIDS/{0}".format(
+            vid)
+        result = _http(moviesurl)
+        movinfo = json.loads(result.replace('\r\n',''))
+        movdat = movinfo['data'][0]
+        streamfids = movdat['streamfileids']
+        stype = 'flv'
+
+        # user select streamtype
+        if len(streamfids) > 1:
+            selstypes = [k for k,v in stypes.iteritems() if v in streamfids]
+            selitem = dialog.select('清晰度', selstypes)
+            if selitem is not -1:
+                stype = stypes[selstypes[selitem]]
+
+        #stream file format type is mp4 or flv
+        ftype = 'mp4' if stype in 'mp4' else 'flv'
+        fileid = self._getfileid(streamfids[stype], int(movdat['seed']))
+        movsegs = movdat['segs'][stype]
+        rooturl = 'http://f.youku.com/player/getFlvPath/sid/00_00/st'
+        segurls = []
+        for movseg in movsegs:
+            #youku split stream file to seg
+            segid = '{0}{1:02X}{2}'.format(fileid[0:8],
+                                           int(movseg['no']) ,fileid[10:])
+            kstr = movseg['k']
+            segurl = '{0}/{1}/fileid/{2}?K={3}'.format(
+                rooturl, ftype, segid, kstr)
+            segurls.append(segurl)
+        movurl = 'stack://{0}'.format(' , '.join(segurls))
+        return movurl
+
+    def sohu(self):
+        html = _http(self.url)
+        vid = re.search(r'\Wvid\s*[\:=]\s*[\'"]?(\d+)[\'"]?', html).group(1)
+        data = json.loads(_http(
+            'http://hot.vrs.sohu.com/vrs_flash.action?vid=%s' % vid))
+        qtyps = [('超清', 'superVid'), ('高清', 'highVid'), ('流畅', 'norVid')]
+        sel = dialog.select('清晰度', [q[0] for q in qtyps])
+        if sel is not -1:
+            qtyp = data['data'][qtyps[sel][1]]
+            if qtyp and qtyp != vid:
+                data = json.loads(_http(
+                    'http://hot.vrs.sohu.com/vrs_flash.action?vid=%s' % qtyp))
+        host = data['allot']
+        prot = data['prot']
+        urls = []
+        data = data['data']
+        title = data['tvName']
+        size = sum(data['clipsBytes'])
+        for file, new in zip(data['clipsURL'], data['su']):
+            urls.append(self.real_url(host, prot, file, new))
+        assert data['clipsURL'][0].endswith('.mp4')
+        movurl = 'stack://{0}'.format(' , '.join(urls))
+        return movurl
+
+    def iqiyi(self):
+        html = _http(self.url)
+        videoId = re.search(r'data-player-videoid="([^"]+)"', html).group(1)
+
+        info_url = 'http://cache.video.qiyi.com/v/%s' % videoId
+        info_xml = _http(info_url)
+
+        from xml.dom.minidom import parseString
+        doc = parseString(info_xml)
+        title = doc.getElementsByTagName('title')[0].firstChild.nodeValue
+        size = int(doc.getElementsByTagName('totalBytes')[0].
+                   firstChild.nodeValue)
+        urls = [n.firstChild.nodeValue
+                for n in doc.getElementsByTagName('file')]
+        assert urls[0].endswith('.f4v'), urls[0]
+
+        for i in range(len(urls)):
+            temp_url = "http://data.video.qiyi.com/%s" % urls[i].split(
+                "/")[-1].split(".")[0] + ".ts"
+            try:
+                req = urllib2.Request(temp_url)
+                urllib2.urlopen(req)
+            except urllib2.HTTPError as e:
+                key = re.search(r'key=(.*)', e.geturl()).group(1)
+            assert key
+            urls[i] += "?key=%s" % key
+        movurl = 'stack://{0}'.format(' , '.join(urls))
+        return movurl
+
+    def pps(self):
+        vid = self.url[:-5].split('_')[1]
+        html = _http(
+            'http://dp.ppstream.com/get_play_url_cdn.php?sid={0}{1}'.format(
+                vid,'&flash_type=1'))
+        movstr = re.compile(r'(http://.*?)\?hd=').search(html).group(1)
+        return movstr
+
+    def tudou(self):
+        html = _http(self.url)
+        vcode = re.search(r'vcode\s*[:=]\s*\'([^\']+)\'', html).group(1)
+        self.url = 'http://v.youku.com/v_show/id_{0}.html'.format(vcode)
+        self.youku()
+
+
+    def letv(self):
+        vid = self.url.split('/')[-1][:-5]
+        infoxml = _http('http://www.letv.com/v_xml/{0}.xml'.format(vid))
+        dispatch = re.search(
+            r'dispatch":({.*?}),"dispatchbak"', infoxml, re.S).group(1)
+        streams = eval(dispatch)
+        sinfo = streams['1300']
+        qtyps = [('1080P', '1080p'), ('超清', '720p'), ('高清', '1300'),
+                 ('标清', '1000'), ('流畅', '350')]
+        sel = dialog.select('清晰度', [q[0] for q in qtyps])
+        if sel is not -1:
+            sinfo = streams[qtyps[sel][1]]
+        resp = urllib2.urlopen(
+            'http://g3.letv.cn/{0}'.format(sinfo[2].replace('\\','')))
+        movurl = resp.geturl()
+        return movurl
+
+    def _getfileid(self, streamid, seed):
+        """
+        get dynamic stream file id
+        Arguments:
+        - `streamid`: e.g. '48*60*21*...*13*'
+        - `seed`: mix str seed
+        """
+        source = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'\
+                 '/\\:._-1234567890'
+        index = 0
+        mixed = []
+        for i in range(len(source)):
+            seed = (seed * 211 + 30031) % 65536
+            index =  seed * len(source) / 65536
+            mixed.append(source[index])
+            source = source.replace(source[index],"")
+        mixstr = ''.join(mixed)
+        attr = streamid[:-1].split('*')
+        res = ""
+        for item in attr:
+            res +=  mixstr[int(item)]
+        return res
+
+    def real_url(self, host, prot, file, new):
+        url = 'http://%s/?prot=%s&file=%s&new=%s' % (host, prot, file, new)
+        start, _, host, key = _http(url).split('|')[:4]
+        return '%s%s?key=%s' % (start[:-1], new, key)
 
 if __name__ == '__main__':
     #filters.clear()
