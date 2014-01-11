@@ -37,6 +37,12 @@ def searchvideo(url):
     """
     search video
     """
+    source = [('http://v.youku.com', 'youku'),
+              ('http://tv.sohu.com', 'sohu'),
+              ('http://www.iqiyi.com', 'iqiyi'),
+              ('http://www.letv.com', 'letv'),
+              ('http://v.pps.tv', 'pps'),
+              ('http://www.tudou.com', 'tudou')]
     kb = Keyboard('',u'请输入搜索关键字')
     xbmc.sleep(1500)
     kb.doModal()
@@ -45,44 +51,47 @@ def searchvideo(url):
         url = url + urllib2.quote(searchStr)
     result = _http(url)
     movstr = re.findall(r'<div class="item">(.*?)<!--item end-->', result, re.S)
-    menus = []
-    tvpatt = re.compile(
+    vitempat = re.compile(
         r'{0}{1}'.format('p_link">.*?title="(.*?)".*?p_thumb.*?src="(.*?)"',
                          '.*?status="(.*?)"'), re.S)
-    lppatt = re.compile(r"linkpanels [\w ]+['\"]\s?>(.*?)class=\"clear\"", re.S)
-    acpatt = re.compile(r'accordion [\w ]+"\s?(?:id=.*?)?>(.*?)div slls>', re.S)
-    epspatt = re.compile(
-        r'{0}{1}'.format("<li(?: .*?(?:e|x)(?:x|e)\")?>.*?(http:.*?html).*?",
-                         "site='(\w+)'.*?>(.*?)</a>"), re.S)
+    menus = []
+    site = None
     for movitem in movstr:
-        if 'p_ispaid' in movitem: pass
-        if 'class="tv"' in movitem or 'class="zy"' in movitem:
-            tv = tvpatt.findall(movitem)
-            sitepanel = lppatt.findall(movitem)
-            if not sitepanel:
-                sitepanel = acpatt.findall(movitem)
-            if 'class="tv"' in movitem:
-                epss = epspatt.findall(sitepanel[0])
-            else:
-                epss = re.findall(r'(http://.*?html).*?>([\w "]+?)</a>',
-                                  sitepanel[0].decode('utf-8'), re.U)
-                print epss
-                epss = reversed([(k, v) for k,v in OrderedDict(reversed(epss)).
-                                 iteritems() if u'查看全部' not in v])
-                epss = [(v[0], v[0].split('.')[1], v[1]) for v in epss]
-            menus.append(
-                {'label': '{0}【{1}】'.format(tv[0][0], tv[0][2]),
-                 'path': plugin.url_for('showsearch', url=str(epss)),
-                 'thumbnail': tv[0][1], })
+        if 'p_ispaid' in movitem or 'nosource' in movitem: continue
+        psrc = re.compile(r'pgm-source(.*?)</div>', re.S).search(movitem)
+        if not psrc: continue
+        for k in source:
+            if k[0] in psrc.group(1):
+                site = k
+                break
+        if not site: continue
+        vitem = vitempat.search(movitem)
+
         if 'class="movie"' in movitem:
-            items = re.findall(
-                r'btnplay_s.*?(http:.*?html).*?title="(.*?)"', movitem, re.S)
-            if items:
-                site = items[0][0].split('.')[1]
-                menus.append({
-                    'label': items[0][1],
-                    'path': plugin.url_for(
-                        'playsearch', url=items[0][0], source=site)})
+            eps = re.search(r'(%s.*?html)' % site[0], movitem, re.S).group(1)
+            menus.append({
+                'label': '%s【%s】(%s)' % (
+                    vitem.group(1), vitem.group(3), site[1]),
+                'path': plugin.url_for('playsearch', url=eps, source=site[1]),
+                'thumbnail': vitem.group(2),})
+
+        if 'class="tv"' in movitem or 'class="zy"' in movitem:
+            if 'class="tv"' in movitem:
+                epss = re.findall(
+                    r'(%s.*?html).*?>([\w ."]+?)</a>' % site[0], movitem, re.S)
+            else:
+                epss = re.findall(r'"date">([\d-]+)<.*?({0}.*?html){1}'.format(
+                    site[0],'.*?>([\w ."]+?)</a>(?su)'),movitem.decode('utf-8'))
+                epss = [(i[1], '%s-%s' % (i[0], i[2])) for i in epss]
+
+            epss = reversed([(k, v) for k,v in OrderedDict(reversed(epss)).
+                             iteritems() if u'查看全部' not in v])
+            epss = [(v[0], site[1], v[1]) for v in epss]
+            menus.append({
+                'label': '%s【%s】(%s)' % (
+                    vitem.group(1), vitem.group(3), site[1]),
+                'path': plugin.url_for('showsearch', url=str(epss)),
+                'thumbnail': vitem.group(2),})
     return menus
 
 @plugin.route('/showsearch/<url>')
@@ -231,7 +240,7 @@ def playmovie(url, source='youku'):
     if 'not support' in movurl:
         xbmcgui.Dialog().ok(
             '提示框', '不支持的播放源,目前支持youku/sohu/iqiyi/pps/letv/tudou')
-        pass
+        return
     listitem=xbmcgui.ListItem()
     listitem.setInfo(type="Video", infoLabels={'Title': 'c'})
     xbmc.Player().play(movurl, listitem)
@@ -244,7 +253,7 @@ def _http(url):
     req.add_header('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) {0}{1}'.
                    format('AppleWebKit/537.36 (KHTML, like Gecko) ',
                           'Chrome/28.0.1500.71 Safari/537.36'))
-    conn = urllib2.urlopen(req)
+    conn = urllib2.urlopen(req, timeout=30)
     content = conn.read()
     conn.close()
     return content
@@ -342,7 +351,7 @@ class PlayUtil(object):
                 "/")[-1].split(".")[0] + ".ts"
             try:
                 req = urllib2.Request(temp_url)
-                urllib2.urlopen(req)
+                urllib2.urlopen(req, timeout=30)
             except urllib2.HTTPError as e:
                 key = re.search(r'key=(.*)', e.geturl()).group(1)
             assert key
@@ -377,8 +386,8 @@ class PlayUtil(object):
         sel = dialog.select('清晰度', [q[0] for q in qtyps])
         if sel is not -1:
             sinfo = streams[qtyps[sel][1]]
-        resp = urllib2.urlopen(
-            'http://g3.letv.cn/{0}'.format(sinfo[2].replace('\\','')))
+        resp = urllib2.urlopen('http://g3.letv.cn/{0}'.format(
+            sinfo[2].replace('\\','')), timeout=30)
         movurl = resp.geturl()
         return movurl
 
