@@ -80,12 +80,12 @@ def searchvideo(url):
                 epss = re.findall(
                     r'(%s.*?html).*?>([\w ."]+?)</a>' % site[0], movitem, re.S)
             else:
-                epss = re.findall(r'"date">([\d-]+)<.*?({0}.*?html){1}'.format(
-                    site[0],'.*?>([\w ."]+?)</a>(?su)'),movitem.decode('utf-8'))
-                epss = [(i[1], '%s-%s' % (i[0], i[2])) for i in epss]
-
-            epss = reversed([(k, v) for k,v in OrderedDict(reversed(epss)).
-                             iteritems() if u'查看全部' not in v])
+                epss = re.findall(r'{0}{1}{2}'.format(
+                    '"(?:(?:date)|(?:phases))">([\d-]+)</span>\s+<a[\S ]+(',
+                    site[0], '.*?html).*?>([^>]+?)</a>(?s)'), movitem)
+                epss = [(i[1], '[%s]%s' % (i[0], i[2])) for i in epss]
+            #epss = reversed([(k, v) for k,v in OrderedDict(reversed(epss)).
+            #                 iteritems() if '查看全部' not in v])
             epss = [(v[0], site[1], v[1]) for v in epss]
             menus.append({
                 'label': '%s【%s】(%s)' % (
@@ -237,7 +237,7 @@ def playmovie(url, source='youku'):
     """
     playutil = PlayUtil(url, source)
     movurl = getattr(playutil, source, playutil.notsup)()
-    if 'not support' in movurl:
+    if not movurl:
         xbmcgui.Dialog().ok(
             '提示框', '不支持的播放源,目前支持youku/sohu/iqiyi/pps/letv/tudou')
         return
@@ -266,8 +266,7 @@ class PlayUtil(object):
         dialog = xbmcgui.Dialog()
 
     def notsup(self):
-        print '*'*20, source
-        return 'not support'
+        pass
 
     def youku(self):
         stypes = OrderedDict((('原画', 'hd3'), ('超清', 'hd2'),
