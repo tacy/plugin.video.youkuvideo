@@ -46,6 +46,7 @@ def searchvideo(url):
     source = [('http://v.youku.com', 'youku'),
               ('http://tv.sohu.com', 'sohu'),
               ('http://www.iqiyi.com', 'iqiyi'),
+              ('http://v.qq.com', 'qq'),
               ('http://www.letv.com', 'letv'),
               ('http://v.pps.tv', 'pps'),
               ('http://www.tudou.com', 'tudou')]
@@ -88,7 +89,8 @@ def searchvideo(url):
             else:
                 epss = re.findall(r'{0}{1}{2}'.format(
                     '"(?:(?:date)|(?:phases))">([\d-]+)</span>\s+<a[\S ]+(',
-                    site[0], '.*?html).*?>([^>]+?)</a>(?s)'), movitem)
+                    site[0], '.*?html).*?>([^>]+?)<(?:(?:em)|(?:/a))(?s)'),
+                                  movitem)
                 epss = [(i[1], '[%s]%s' % (i[0], i[2])) for i in epss]
             #epss = reversed([(k, v) for k,v in OrderedDict(reversed(epss)).
             #                 iteritems() if '查看全部' not in v])
@@ -408,6 +410,12 @@ class PlayUtil(object):
         resp = urllib2.urlopen('http://g3.letv.cn/{0}'.format(
             sinfo[2].replace('\\','')), timeout=30)
         movurl = resp.geturl()
+        return movurl
+
+    def qq(self):
+        html = _http(self.url)
+        vid = re.compile(r'vid:"([^"]+)"').search(html).group(1)
+        movurl = 'http://vsrc.store.qq.com/%s.flv' % vid
         return movurl
 
     def _getfileid(self, streamid, seed):
