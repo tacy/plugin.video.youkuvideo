@@ -13,6 +13,7 @@ from collections_backport import OrderedDict
 plugin = Plugin()
 dialog = xbmcgui.Dialog()
 filters = plugin.get_storage('ftcache', TTL=1440)
+epcache = plugin.get_storage('epcache', TTL=1440)
 
 @plugin.route('/')
 def showcatalog():
@@ -30,6 +31,8 @@ def showcatalog():
     } for catalog in catalogs]
     menus.insert(0, {'label': '【搜索视频】选择', 'path': plugin.url_for(
         'searchvideo', url='http://www.soku.com/search_video/q_')})
+    menus.append({'label': '手动清除缓存【缓存24小时自动更新】',
+                  'path': plugin.url_for('clscache')})
     return menus
 
 @plugin.route('/searchvideo/<url>')
@@ -127,6 +130,8 @@ def showmovie(url):
         url='{0}.html'.format(url)
         print '*'*80, url
 
+    if url in epcache: return epcache[url]
+
     result = _http(url)
 
     #get catalog filter list, filter will be cache
@@ -193,6 +198,7 @@ def showmovie(url):
             'path': plugin.url_for(routeaddr[0][1] ,url=m[3]),
             'thumbnail': m[0],
         })
+    epcache[url] = menus
     return menus
 
 @plugin.route('/episodes/<url>')
@@ -200,6 +206,7 @@ def showepisode(url):
     """
     show episodes list
     """
+    if url in epcache: return epcache[url]
     result = _http(url)
     episodestr = re.search(r'id="episode_wrap">(.*?)<div id="point_wrap',
                            result, re.S)
@@ -227,6 +234,7 @@ def showepisode(url):
             'label': episode[1].decode('utf-8'),
             'path': plugin.url_for('playmovie', url=episode[0]),
             } for episode in episodes]
+        epcache[url] = menus
         return menus
 
 @plugin.route('/play/<url>')
@@ -244,6 +252,14 @@ def playmovie(url, source='youku'):
     listitem=xbmcgui.ListItem()
     listitem.setInfo(type="Video", infoLabels={'Title': 'c'})
     xbmc.Player().play(movurl, listitem)
+
+@plugin.route('/clscache')
+def clscache():
+    filters.clear()
+    epcache.clear()
+    xbmcgui.Dialog().ok(
+        '提示框', '清除成功')
+    return
 
 def _http(url):
     """
