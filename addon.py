@@ -20,7 +20,9 @@ def showcatalog():
     """
     show catalog list
     """
-    result = _http('http://www.youku.com/v/')
+    url = 'http://www.youku.com/v/'
+    if url in epcache: return epcache[url]
+    result = _http(url)
     catastr = re.search(r'yk-filter-panel">(.*?)yk-filter-handle',
                         result, re.S)
     catalogs = re.findall(r'href="(.*?)".*?>(.*?)</a>', catastr.group(1))
@@ -33,6 +35,7 @@ def showcatalog():
         'searchvideo', url='http://www.soku.com/search_video/q_')})
     menus.append({'label': '手动清除缓存【缓存24小时自动更新】',
                   'path': plugin.url_for('clscache')})
+    epcache[url] = menus
     return menus
 
 @plugin.route('/searchvideo/<url>')
@@ -160,10 +163,11 @@ def showmovie(url):
         filters[key] = types
 
     #get movie list
-    mstr = r'{0}{1}{2}'.format('[vp]-thumb">\s+<img src="(.*?)" alt="(.*?)">',
+    mstr = r'{0}{1}{2}'.format('[vp]-thumb">\s+<img src="(.*?)" alt="([^>]+)"',
                                '.*?"[pv]-thumb-tag[lr]b"><.*?">([^<]+?)',
                                '<.*?"[pv]-link">\s+<a href="(.*?)"')
     movies = re.findall(mstr, result, re.S)
+    print movies
     #deduplication movie item
     #movies = [(k,v) for k,v in OrderedDict(movies).iteritems()]
 
