@@ -33,7 +33,7 @@ def showcatalog():
     } for catalog in catalogs]
     menus.insert(0, {'label': '【搜索视频】选择', 'path': plugin.url_for(
         'searchvideo', url='http://www.soku.com/search_video/q_')})
-    menus.append({'label': '手动清除缓存【缓存24小时自动更新】',
+    menus.append({'label': '手动清除缓存【缓存24小时自动失效】',
                   'path': plugin.url_for('clscache')})
     epcache[url] = menus
     return menus
