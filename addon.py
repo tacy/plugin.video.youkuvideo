@@ -45,8 +45,8 @@ def searchvideo(url):
     """
     source = [('http://v.youku.com', 'youku'),
               ('http://tv.sohu.com', 'sohu'),
-              ('http://www.iqiyi.com', 'iqiyi'),
               ('http://v.qq.com', 'qq'),
+              ('http://www.iqiyi.com', 'iqiyi'),
               ('http://www.letv.com', 'letv'),
               ('http://v.pps.tv', 'pps'),
               ('http://www.tudou.com', 'tudou')]
@@ -169,7 +169,6 @@ def showmovie(url):
                                '.*?"[pv]-thumb-tag[lr]b"><.*?">([^<]+?)',
                                '<.*?"[pv]-link">\s+<a href="(.*?)"')
     movies = re.findall(mstr, result, re.S)
-    print movies
     #deduplication movie item
     #movies = [(k,v) for k,v in OrderedDict(movies).iteritems()]
 
@@ -253,7 +252,11 @@ def playmovie(url, source='youku'):
     movurl = getattr(playutil, source, playutil.notsup)()
     if not movurl:
         xbmcgui.Dialog().ok(
-            '提示框', '不支持的播放源,目前支持youku/sohu/iqiyi/pps/letv/tudou')
+            '提示框', '解析地址异常，无法播放')
+        return
+    if 'not support' in movurl:
+        xbmcgui.Dialog().ok(
+            '提示框', '不支持的播放源,目前支持youku/sohu/qq/iqiyi/pps/letv/tudou')
         return
     listitem=xbmcgui.ListItem()
     listitem.setInfo(type="Video", infoLabels={'Title': 'c'})
@@ -288,10 +291,10 @@ class PlayUtil(object):
         dialog = xbmcgui.Dialog()
 
     def notsup(self):
-        pass
+        return 'not support'
 
     def youku(self):
-        stypes = OrderedDict((('原画', 'hd3'), ('超清', 'hd2'),
+        stypes = OrderedDict((('1080P', 'hd3'), ('超清', 'hd2'),
                               ('高清', 'mp4'), ('标清', 'flv')))
         #get movie metadata (json format)
         vid = self.url[-18:-5]
@@ -415,8 +418,32 @@ class PlayUtil(object):
     def qq(self):
         html = _http(self.url)
         vid = re.compile(r'vid:"([^"]+)"').search(html).group(1)
-        movurl = 'http://vsrc.store.qq.com/%s.flv' % vid
+        murl = 'http://vv.video.qq.com/'
+        vinfo = _http('%sgetinfo?otype=json&vids=%s' % (murl, vid))
+        infoj = json.loads(vinfo.split('=')[1][:-1])
+        qtyps = OrderedDict((
+            ('1080P', 'fhd'), ('超清', 'shd'), ('高清', 'hd'), ('标清', 'sd')))
+        vtyps = {v['name']:v['id'] for v in infoj['fl']['fi']}
+        qtypid = vtyps['sd']
+        sels = [k for k,v in qtyps.iteritems() if v in vtyps]
+        sel = dialog.select('清晰度', sels)
+        surls = []
+        urlpre = infoj['vl']['vi'][0]['ul']['ui'][-1]['url']
+        if sel is not -1:
+            qtypid = vtyps[qtyps[sels[sel]]]
+        for i in range(1, int(infoj['vl']['vi'][0]['cl']['fc'])):
+            fn = '%s.p%s.%s.mp4' % (vid, qtypid%10000, str(i))
+            sinfo = _http(
+                '{0}getkey?format={1}&filename={2}&vid={3}&otype=json'.format(
+                    murl, qtypid, fn, vid))
+            skey = json.loads(sinfo.split('=')[1][:-1])['key']
+            surl = urllib2.urlopen(
+                '%s%s?vkey=%s' % (urlpre, fn, skey), timeout=30).geturl()
+            if not surl: break
+            surls.append(surl)
+        movurl = 'stack://{0}'.format(' , '.join(surls))
         return movurl
+        #movurl = 'http://vsrc.store.qq.com/%s.flv' % vid
 
     def _getfileid(self, streamid, seed):
         """
