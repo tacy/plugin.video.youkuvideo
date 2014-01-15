@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 import os
-import sys
 import re
+import sys
 import json
+import gzip
 import urllib2
+import cStringIO
 from xbmcswift2 import xbmc
 from xbmcswift2 import Plugin
 from xbmcswift2 import xbmcgui
@@ -278,10 +280,16 @@ def _http(url):
     req.add_header('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) {0}{1}'.
                    format('AppleWebKit/537.36 (KHTML, like Gecko) ',
                           'Chrome/28.0.1500.71 Safari/537.36'))
-    conn = urllib2.urlopen(req, timeout=30)
-    content = conn.read()
-    conn.close()
-    return content
+    req.add_header('Accept-encoding', 'gzip')
+    rsp = urllib2.urlopen(req, timeout=30)
+    if rsp.info().get('Content-Encoding') == 'gzip':
+        buf = cStringIO.StringIO(rsp.read())
+        f = gzip.GzipFile(fileobj=buf)
+        data = f.read()
+    else:
+        data = rsp.read()
+    rsp.close()
+    return data
 
 
 class PlayUtil(object):
