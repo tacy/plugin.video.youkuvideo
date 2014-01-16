@@ -5,12 +5,16 @@ import sys
 import json
 import gzip
 import urllib2
+import httplib
 import cStringIO
 from xbmcswift2 import xbmc
 from xbmcswift2 import Plugin
 from xbmcswift2 import xbmcgui
-from ChineseKeyboard import Keyboard
 from collections_backport import OrderedDict
+try:
+    from ChineseKeyboard import Keyboard
+except ImportError:
+    from xbmcswift2 import Keyboard
 
 plugin = Plugin()
 dialog = xbmcgui.Dialog()
@@ -53,11 +57,11 @@ def searchvideo(url):
               ('http://v.pps.tv', 'pps'),
               ('http://www.tudou.com', 'tudou')]
     kb = Keyboard('',u'请输入搜索关键字')
-    xbmc.sleep(1500)
     kb.doModal()
-    if kb.isConfirmed():
-        searchStr = kb.getText()
-        url = url + urllib2.quote(searchStr)
+    if not kb.isConfirmed(): return
+    sstr = kb.getText()
+    if not sstr: return
+    url = url + urllib2.quote(sstr)
     result = _http(url)
     movstr = re.findall(r'<div class="item">(.*?)<!--item end-->', result, re.S)
     vitempat = re.compile(
@@ -81,7 +85,7 @@ def searchvideo(url):
             menus.append({
                 'label': '%s【%s】(%s)' % (
                     vitem.group(1), vitem.group(3), site[1]),
-                'path': plugin.url_for('playsearch', url=eps, source=site[1]),
+                'path': plugin.url_for('plsearch', url=eps, source=site[1]),
                 'thumbnail': vitem.group(2),})
 
         if 'class="tv"' in movitem or 'class="zy"' in movitem:
@@ -132,8 +136,8 @@ def showmovie(url):
             if '筛选' in k: continue
             fts = [m[1] for m in v]
             selitem = dialog.select(k, fts)
-            if selitem is not -1:
-                url = '{0}{1}'.format(url,v[selitem][0])
+            if selitem is -1: return
+            url = '{0}{1}'.format(url,v[selitem][0])
         url='{0}.html'.format(url)
         print '*'*80, url
 
@@ -231,11 +235,17 @@ def showepisode(url):
     else:
         elists = re.findall(r'<li data="(reload_\d+)" >', result)
         epiurlpart = url.replace('page', 'episode')
+
+        #httplib can keepalive
+        conn = httplib.HTTPConnection(epiurlpart.split('/')[2])
         for elist in elists:
             epiurl = epiurlpart + '?divid={0}'.format(elist)
-            result = _http(epiurl)
+            conn.request('GET', '/%s' % '/'.join(epiurl.split('/')[3:]))
+            result = conn.getresponse().read()
+            #result = _http(epiurl)
             epimore = patt.findall(result)
             episodes.extend(epimore)
+        conn.close()
 
         menus = [{
             'label': episode[1].decode('utf-8'),
@@ -260,6 +270,7 @@ def playmovie(url, source='youku'):
         xbmcgui.Dialog().ok(
             '提示框', '不支持的播放源,目前支持youku/sohu/qq/iqiyi/pps/letv/tudou')
         return
+    if 'cancel' in movurl: return
     listitem=xbmcgui.ListItem()
     listitem.setInfo(type="Video", infoLabels={'Title': 'c'})
     xbmc.Player().play(movurl, listitem)
@@ -318,8 +329,8 @@ class PlayUtil(object):
         if len(streamfids) > 1:
             selstypes = [k for k,v in stypes.iteritems() if v in streamfids]
             selitem = dialog.select('清晰度', selstypes)
-            if selitem is not -1:
-                stype = stypes[selstypes[selitem]]
+            if selitem is -1: return 'cancle'
+            stype = stypes[selstypes[selitem]]
 
         #stream file format type is mp4 or flv
         ftype = 'mp4' if stype in 'mp4' else 'flv'
@@ -345,11 +356,11 @@ class PlayUtil(object):
             'http://hot.vrs.sohu.com/vrs_flash.action?vid=%s' % vid))
         qtyps = [('超清', 'superVid'), ('高清', 'highVid'), ('流畅', 'norVid')]
         sel = dialog.select('清晰度', [q[0] for q in qtyps])
-        if sel is not -1:
-            qtyp = data['data'][qtyps[sel][1]]
-            if qtyp and qtyp != vid:
-                data = json.loads(_http(
-                    'http://hot.vrs.sohu.com/vrs_flash.action?vid=%s' % qtyp))
+        if sel is -1: return 'cancel'
+        qtyp = data['data'][qtyps[sel][1]]
+        if qtyp and qtyp != vid:
+            data = json.loads(_http(
+                'http://hot.vrs.sohu.com/vrs_flash.action?vid=%s' % qtyp))
         host = data['allot']
         prot = data['prot']
         urls = []
@@ -416,8 +427,8 @@ class PlayUtil(object):
         qtyps = [('1080P', '1080p'), ('超清', '720p'), ('高清', '1300'),
                  ('标清', '1000'), ('流畅', '350')]
         sel = dialog.select('清晰度', [q[0] for q in qtyps])
-        if sel is not -1:
-            sinfo = streams[qtyps[sel][1]]
+        if sel is -1: return 'cancel'
+        sinfo = streams[qtyps[sel][1]]
         resp = urllib2.urlopen('http://g3.letv.cn/{0}'.format(
             sinfo[2].replace('\\','')), timeout=30)
         movurl = resp.geturl()
@@ -437,8 +448,8 @@ class PlayUtil(object):
         sel = dialog.select('清晰度', sels)
         surls = []
         urlpre = infoj['vl']['vi'][0]['ul']['ui'][-1]['url']
-        if sel is not -1:
-            qtypid = vtyps[qtyps[sels[sel]]]
+        if sel is -1: return 'cancel'
+        qtypid = vtyps[qtyps[sels[sel]]]
         for i in range(1, int(infoj['vl']['vi'][0]['cl']['fc'])):
             fn = '%s.p%s.%s.mp4' % (vid, qtypid%10000, str(i))
             sinfo = _http(
@@ -482,5 +493,4 @@ class PlayUtil(object):
         return '%s%s?key=%s' % (start[:-1], new, key)
 
 if __name__ == '__main__':
-    #filters.clear()
     plugin.run()
