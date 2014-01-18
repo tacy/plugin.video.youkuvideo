@@ -6,7 +6,7 @@ import json
 import gzip
 import urllib2
 import httplib
-import cStringIO
+from StringIO import StringIO
 from xbmcswift2 import xbmc
 from xbmcswift2 import Plugin
 from xbmcswift2 import xbmcgui
@@ -85,7 +85,7 @@ def searchvideo(url):
             menus.append({
                 'label': '%s【%s】(%s)' % (
                     vitem.group(1), vitem.group(3), site[1]),
-                'path': plugin.url_for('plsearch', url=eps, source=site[1]),
+                'path': plugin.url_for('playsearch', url=eps, source=site[1]),
                 'thumbnail': vitem.group(2),})
 
         if 'class="tv"' in movitem or 'class="zy"' in movitem:
@@ -294,7 +294,7 @@ def _http(url):
     req.add_header('Accept-encoding', 'gzip')
     rsp = urllib2.urlopen(req, timeout=30)
     if rsp.info().get('Content-Encoding') == 'gzip':
-        buf = cStringIO.StringIO(rsp.read())
+        buf = StringIO(rsp.read())
         f = gzip.GzipFile(fileobj=buf)
         data = f.read()
     else:
