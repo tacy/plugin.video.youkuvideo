@@ -442,7 +442,9 @@ class PlayUtil(object):
         infoj = json.loads(vinfo.split('=')[1][:-1])
         qtyps = OrderedDict((
             ('1080P', 'fhd'), ('超清', 'shd'), ('高清', 'hd'), ('标清', 'sd')))
-        vtyps = {v['name']:v['id'] for v in infoj['fl']['fi']}
+        #python 2.7 syntax
+        #vtyps = {v['name']:v['id'] for v in infoj['fl']['fi']}
+        vtyps = dict((v['name'],v['id']) for v in infoj['fl']['fi'])
         qtypid = vtyps['sd']
         sels = [k for k,v in qtyps.iteritems() if v in vtyps]
         sel = dialog.select('清晰度', sels)
