@@ -11,10 +11,7 @@ from xbmcswift2 import xbmc
 from xbmcswift2 import Plugin
 from xbmcswift2 import xbmcgui
 from collections_backport import OrderedDict
-try:
-    from ChineseKeyboard import Keyboard
-except ImportError:
-    from xbmcswift2 import Keyboard
+from zhcnkbd import Keyboard
 
 plugin = Plugin()
 dialog = xbmcgui.Dialog()
