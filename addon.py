@@ -449,7 +449,8 @@ class PlayUtil(object):
         urlpre = infoj['vl']['vi'][0]['ul']['ui'][-1]['url']
         if sel is -1: return 'cancel'
         qtypid = vtyps[qtyps[sels[sel]]]
-        for i in range(1, int(infoj['vl']['vi'][0]['cl']['fc'])):
+
+        for i in range(1, int(infoj['vl']['vi'][0]['cl']['fc'])+1):
             fn = '%s.p%s.%s.mp4' % (vid, qtypid%10000, str(i))
             sinfo = _http(
                 '{0}getkey?format={1}&filename={2}&vid={3}&otype=json'.format(
