@@ -61,6 +61,18 @@ def searchvideo(url):
     url = url + urllib2.quote(sstr)
     result = _http(url)
     movstr = re.findall(r'<div class="item">(.*?)<!--item end-->', result, re.S)
+
+    if not movstr:
+        vitempat = re.compile(
+            r'lass="v-thumb".*?img alt="(.*?)" src="(.*?)".*?href="(.*?)"',re.S)
+        movs = re.findall(vitempat, result)
+        menus = [{
+            'label': m[0],
+            'path': plugin.url_for('playmovie', url=m[2]),
+            'thumbnail': m[1]
+        } for m in movs]
+        return menus
+
     vitempat = re.compile(
         r'{0}{1}'.format('p_link">.*?title="(.*?)".*?p_thumb.*?src="(.*?)"',
                          '.*?status="(.*?)"'), re.S)
@@ -259,6 +271,7 @@ def playmovie(url, source='youku'):
     """
     playutil = PlayUtil(url, source)
     movurl = getattr(playutil, source, playutil.notsup)()
+
     if not movurl:
         xbmcgui.Dialog().ok(
             '提示框', '解析地址异常，无法播放')
@@ -342,7 +355,9 @@ class PlayUtil(object):
             kstr = movseg['k']
             segurl = '{0}/{1}/fileid/{2}?K={3}'.format(
                 rooturl, ftype, segid, kstr)
-            segurls.append(segurl)
+            rsp = urllib2.urlopen(segurl)
+            rsegurl = rsp.geturl()
+            segurls.append(rsegurl)
         movurl = 'stack://{0}'.format(' , '.join(segurls))
         return movurl
 
