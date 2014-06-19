@@ -4,6 +4,9 @@ import re
 import sys
 import json
 import gzip
+import base64
+import time
+import urllib
 import urllib2
 import httplib
 from StringIO import StringIO
@@ -327,12 +330,13 @@ class PlayUtil(object):
                               ('高清', 'mp4'), ('标清', 'flv')))
         #get movie metadata (json format)
         vid = self.url[-18:-5]
-        moviesurl="http://v.youku.com/player/getPlayList/VideoIDS/{0}".format(
+        moviesurl="http://v.youku.com/player/getPlayList/VideoIDS/{0}/ctype/12/ev/1".format(
             vid)
         result = _http(moviesurl)
         movinfo = json.loads(result.replace('\r\n',''))
         movdat = movinfo['data'][0]
         streamfids = movdat['streamfileids']
+        video_id = movdat['videoid']
         stype = 'flv'
 
         # user select streamtype
@@ -345,20 +349,28 @@ class PlayUtil(object):
         #stream file format type is mp4 or flv
         ftype = 'mp4' if stype in 'mp4' else 'flv'
         fileid = self._getfileid(streamfids[stype], int(movdat['seed']))
-        movsegs = movdat['segs'][stype]
-        rooturl = 'http://f.youku.com/player/getFlvPath/sid/00_00/st'
-        segurls = []
-        for movseg in movsegs:
-            #youku split stream file to seg
-            segid = '{0}{1:02X}{2}'.format(fileid[0:8],
-                                           int(movseg['no']) ,fileid[10:])
-            kstr = movseg['k']
-            segurl = '{0}/{1}/fileid/{2}?K={3}'.format(
-                rooturl, ftype, segid, kstr)
-            rsp = urllib2.urlopen(segurl)
-            rsegurl = rsp.geturl()
-            segurls.append(rsegurl)
-        movurl = 'stack://{0}'.format(' , '.join(segurls))
+        new_ep, token, sid = self._calc_ep2(video_id, movdat['ep'])
+        query = urllib.urlencode(dict(
+            vid=video_id, ts=int(time.time()), keyframe=1, type=stype,
+            ep=new_ep, oip=movdat['ip'], ctype=12, ev=1, token=token, sid=sid,
+        ))
+        movurl = 'http://pl.youku.com/playlist/m3u8?' + query
+        #movurl = _http(url)
+        # movsegs = movdat['segs'][stype]
+        # rooturl = 'http://k.youku.com/player/getFlvPath/sid/00_00/st'
+        # segurls = []
+        # for movseg in movsegs:
+        #     #youku split stream file to seg
+        #     segid = '{0}{1:02X}{2}'.format(fileid[0:8],
+        #                                    int(movseg['no']) ,fileid[10:])
+        #     kstr = movseg['k']
+        #     segurl = '{0}/{1}/fileid/{2}?K={3}'.format(
+        #         rooturl, ftype, segid, kstr)
+        #     rsp = urllib2.urlopen(segurl)
+        #     rsegurl = rsp.geturl()
+        #     segurls.append(rsegurl)
+        # movurl = 'stack://{0}'.format(' , '.join(segurls))
+
         return movurl
 
     def sohu(self):
@@ -400,7 +412,6 @@ class PlayUtil(object):
         urls = [n.firstChild.nodeValue
                 for n in doc.getElementsByTagName('file')]
         assert urls[0].endswith('.f4v'), urls[0]
-
         for i in range(len(urls)):
             temp_url = "http://data.video.qiyi.com/%s" % urls[i].split(
                 "/")[-1].split(".")[0] + ".ts"
@@ -501,6 +512,73 @@ class PlayUtil(object):
         for item in attr:
             res +=  mixstr[int(item)]
         return res
+
+    def trans_e(self, a, c):
+        b = range(256)
+        f = 0
+        result = ''
+        h = 0
+        while h < 256:
+            f = (f + b[h] + ord(a[h % len(a)])) % 256
+            b[h], b[f] = b[f], b[h]
+            h += 1
+
+        q = f = h = 0
+        while q < len(c):
+            h = (h + 1) % 256
+            f = (f + b[h]) % 256
+            b[h], b[f] = b[f], b[h]
+            result += chr(ord(c[q]) ^ b[(b[h] + b[f]) % 256])
+            q += 1
+
+        return result
+
+    def trans_f(self, a, c):
+        """
+        :argument a: list
+        :param c:
+        :return:
+        """
+        b = []
+        for f in range(len(a)):
+            i = ord(a[f][0]) - 97 if "a" <= a[f] <= "z" else int(a[f]) + 26
+            e = 0
+            while e < 36:
+                if c[e] == i:
+                    i = e
+                    break
+
+                e += 1
+
+            v = i - 26 if i > 25 else chr(i + 97)
+            b.append(str(v))
+
+        return ''.join(b)
+
+
+    # array_1 = [
+    #     19, 1, 4, 7, 30, 14, 28, 8, 24, 17, 6, 35,
+    #     34, 16, 9, 10, 13, 22, 32, 29, 31, 21, 18,
+    #     3, 2, 23, 25, 27, 11, 20, 5, 15, 12, 0, 33, 26
+    # ]
+    # array_2 = [
+    #     19, 1, 4, 7, 30, 14, 28, 8, 24, 17,
+    #     6, 35, 34, 16, 9, 10, 13, 22, 32, 29,
+    #     31, 21, 18, 3, 2, 23, 25, 27, 11, 20,
+    #     5, 15, 12, 0, 33, 26
+    # ]
+    # code_1 = 'b4eto0b4'
+    # code_2 = 'boa4poz1'
+    # f_code_1 = trans_f(code_1, array_1)
+    # f_code_2 = trans_f(code_2, array_2)
+    f_code_1 = 'becaf9be'
+    f_code_2 = 'bf7e5f01'
+
+    def _calc_ep2(self, vid, ep):
+        e_code = self.trans_e(self.f_code_1, base64.b64decode(ep))
+        sid, token = e_code.split('_')
+        new_ep = self.trans_e(self.f_code_2, '%s_%s_%s' % (sid, vid, token))
+        return base64.b64encode(new_ep), token, sid
 
     def real_url(self, host, prot, file, new):
         url = 'http://%s/?prot=%s&file=%s&new=%s' % (host, prot, file, new)
