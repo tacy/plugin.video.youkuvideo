@@ -372,7 +372,8 @@ class PlayUtil(object):
         # movurl = 'stack://{0}'.format(' , '.join(segurls))
         m3p8 = _http(movurl)
         segurls = re.findall('(http://.*)\?', m3p8)
-        segurls = set(segurls)
+        seen = set()
+        segurls = [x for x in segurls if x not in seen and not seen.add(x)]
         movurl = 'stack://{0}'.format(' , '.join(segurls))
         return movurl
 
