@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-import os
 import re
-import sys
 import json
 import gzip
 import base64
@@ -21,13 +19,15 @@ dialog = xbmcgui.Dialog()
 filters = plugin.get_storage('ftcache', TTL=1440)
 epcache = plugin.get_storage('epcache', TTL=1440)
 
+
 @plugin.route('/')
 def showcatalog():
     """
     show catalog list
     """
     url = 'http://www.youku.com/v/'
-    if url in epcache: return epcache[url]
+    if url in epcache:
+        return epcache[url]
     result = _http(url)
     catastr = re.search(r'yk-filter-panel">(.*?)yk-filter-handle',
                         result, re.S)
@@ -35,7 +35,8 @@ def showcatalog():
     menus = [{
         'label': catalog[-1].decode('utf-8'),
         'path': plugin.url_for('showmovie',
-                            url='http://www.youku.com{0}'.format(catalog[0])),
+                               url='http://www.youku.com{0}'.format(
+                                   catalog[0])),
     } for catalog in catalogs]
     menus.insert(0, {'label': '【搜索视频】选择', 'path': plugin.url_for(
         'searchvideo', url='http://www.soku.com/search_video/q_')})
@@ -43,6 +44,7 @@ def showcatalog():
                   'path': plugin.url_for('clscache')})
     epcache[url] = menus
     return menus
+
 
 @plugin.route('/searchvideo/<url>')
 def searchvideo(url):
@@ -56,18 +58,22 @@ def searchvideo(url):
               ('http://www.letv.com', 'letv'),
               ('http://v.pps.tv', 'pps'),
               ('http://www.tudou.com', 'tudou')]
-    kb = Keyboard('',u'请输入搜索关键字')
+    kb = Keyboard('', u'请输入搜索关键字')
     kb.doModal()
-    if not kb.isConfirmed(): return
+    if not kb.isConfirmed():
+        return
     sstr = kb.getText()
-    if not sstr: return
+    if not sstr:
+        return
     url = url + urllib2.quote(sstr)
     result = _http(url)
-    movstr = re.findall(r'<div class="item">(.*?)<!--item end-->', result, re.S)
+    movstr = re.findall(
+        r'<div class="item">(.*?)<!--item end-->', result, re.S)
 
     if not movstr:
         vitempat = re.compile(
-            r'lass="v-thumb".*?img alt="(.*?)" src="(.*?)".*?href="(.*?)"',re.S)
+            r'lass="v-thumb".*?img alt="(.*?)" src="(.*?)".*?href="(.*?)"',
+            re.S)
         movs = re.findall(vitempat, result)
         menus = [{
             'label': m[0],
@@ -82,14 +88,17 @@ def searchvideo(url):
     menus = []
     site = None
     for movitem in movstr:
-        if 'p_ispaid' in movitem or 'nosource' in movitem: continue
+        if 'p_ispaid' in movitem or 'nosource' in movitem:
+            continue
         psrc = re.compile(r'pgm-source(.*?)</div>', re.S).search(movitem)
-        if not psrc: continue
+        if not psrc:
+            continue
         for k in source:
             if k[0] in psrc.group(1):
                 site = k
                 break
-        if not site: continue
+        if not site:
+            continue
         vitem = vitempat.search(movitem)
 
         if 'class="movie"' in movitem:
@@ -98,27 +107,29 @@ def searchvideo(url):
                 'label': '%s【%s】(%s)' % (
                     vitem.group(1), vitem.group(3), site[1]),
                 'path': plugin.url_for('playsearch', url=eps, source=site[1]),
-                'thumbnail': vitem.group(2),})
+                'thumbnail': vitem.group(2), })
 
         if 'class="tv"' in movitem or 'class="zy"' in movitem:
             if 'class="tv"' in movitem:
                 epss = re.findall(
                     r'(%s.*?html).*?>([\w ."]+?)</a>' % site[0], movitem, re.S)
             else:
-                epss = re.findall(r'{0}{1}{2}'.format(
-                    '"(?:(?:date)|(?:phases))">([\d-]+)</span>\s+<a[\S ]+(',
-                    site[0], '.*?html).*?>([^>]+?)<(?:(?:em)|(?:/a))(?s)'),
-                                  movitem)
+                epss = re.findall(
+                    r'{0}{1}{2}'.format(
+                        '"(?:(?:date)|(?:phases))">([\d-]+)</span>\s+<a[\S ]+(',
+                        site[0], '.*?html).*?>([^>]+?)<(?:(?:em)|(?:/a))(?s)'),
+                    movitem)
                 epss = [(i[1], '[%s]%s' % (i[0], i[2])) for i in epss]
-            #epss = reversed([(k, v) for k,v in OrderedDict(reversed(epss)).
+            # epss = reversed([(k, v) for k,v in OrderedDict(reversed(epss)).
             #                 iteritems() if '查看全部' not in v])
             epss = [(v[0], site[1], v[1]) for v in epss]
             menus.append({
                 'label': '%s【%s】(%s)' % (
                     vitem.group(1), vitem.group(3), site[1]),
                 'path': plugin.url_for('showsearch', url=str(epss)),
-                'thumbnail': vitem.group(2),})
+                'thumbnail': vitem.group(2), })
     return menus
+
 
 @plugin.route('/showsearch/<url>')
 def showsearch(url):
@@ -126,50 +137,55 @@ def showsearch(url):
     url: 0 is url, 1 is play site, 2 is title
     """
     items = eval(url)
-    if len(items)>100:
+    if len(items) > 100:
         items = sorted(list(set(items)), key=lambda item: int(item[2]))
     menus = [{'label': item[2],
-              'path': plugin.url_for('playsearch', url=item[0], source=item[1]),
-          } for item in items]
+              'path': plugin.url_for('playsearch',
+                                     url=item[0], source=item[1]), }
+             for item in items]
     return menus
+
 
 @plugin.route('/movies/<url>')
 def showmovie(url):
     """
     show movie list
     """
-    #filter key, e.g. 'http://www.youku.com/v_showlist/c90'
+    # filter key, e.g. 'http://www.youku.com/v_showlist/c90'
     urlsps = re.findall(r'(.*?/[a-z]_*\d+)', url)
     key = urlsps[0]
-    #filter movie by filters
+    # filter movie by filters
     if 'change' in url:
         url = key
         for k, v in filters[key].iteritems():
-            if '筛选' in k: continue
+            if '筛选' in k:
+                continue
             fts = [m[1] for m in v]
             selitem = dialog.select(k, fts)
-            if selitem is -1: return
-            url = '{0}{1}'.format(url,v[selitem][0])
-        url='{0}.html'.format(url)
-        print '*'*80, url
+            if selitem is -1:
+                return
+            url = '{0}{1}'.format(url, v[selitem][0])
+        url = '{0}.html'.format(url)
+        # print '*'*80, url
 
-    if url in epcache: return epcache[url]
+        if url in epcache:
+            return epcache[url]
 
     result = _http(url)
 
-    #get catalog filter list, filter will be cache
-    #filters item example:
+    # get catalog filter list, filter will be cache
+    # filters item example:
     #   key:'http://www.youku.com/v_olist/c_97'
     #   value: '{'地区':('_a_大陆', '大陆', ...)}
     if key not in filters:
         filterstr = re.search(r'yk-filter-panel">(.*?)yk-filter-handle',
-                            result, re.S)
+                              result, re.S)
         filtertypes = re.findall(r'<label>(.*?)<.*?<ul>(.*?)</ul>',
                                  filterstr.group(1), re.S)
         types = OrderedDict()
         for filtertype in filtertypes[1:]:
             typeitems = re.findall(r'(_*[a-z]+_*[^_]+?).html">(.*?)</a>',
-                                       filtertype[1], re.S)
+                                   filtertype[1], re.S)
             typeitems.insert(0, ('', '全部'))
             types[filtertype[0]] = typeitems
         yksorts = re.findall(r'yk-sort-item(.*?)/ul>', result, re.S)
@@ -179,64 +195,69 @@ def showmovie(url):
                 types['排序{0}'.format(seq)] = [(s[seq], s[2]) for s in sorts]
             else:
                 sorts = re.findall(r'(d\d+)(s\d+).*?>(.*?)</a>', yksort)
-                types['排序{0}'.format(seq)] = [(s[not seq], s[2]) for s in sorts]
+                types['排序{0}'.format(seq)] = [
+                    (s[not seq], s[2]) for s in sorts]
         filters[key] = types
 
-    #get movie list
+    # get movie list
     mstr = r'{0}{1}{2}'.format('[vp]-thumb">\s+<img src="(.*?)" alt="([^>]+)"',
                                '.*?"[pv]-thumb-tag[lr]b"><.*?">([^<]+?)',
                                '<.*?"[pv]-link">\s+<a href="(.*?)"')
     movies = re.findall(mstr, result, re.S)
-    #deduplication movie item
-    #movies = [(k,v) for k,v in OrderedDict(movies).iteritems()]
+    # deduplication movie item
+    # movies = [(k,v) for k,v in OrderedDict(movies).iteritems()]
 
-    #add pre/next item
+    # add pre/next item
     pagestr = re.search(r'class="yk-pages">(.*?)</ul>',
                         result, re.S)
     if pagestr:
         pre = re.findall(r'class="prev" title="(.*?)">\s*<a href="(.*?)"',
                          pagestr.group(1))
-        if pre: movies.append(('', pre[0][0], '',
-                               'http://www.youku.com{0}'.format(pre[0][1])))
+        if pre:
+            movies.append(('', pre[0][0], '',
+                           'http://www.youku.com{0}'.format(pre[0][1])))
         nex = re.findall(r'class="next" title="(.*?)">\s*<a href="(.*?)"',
                          pagestr.group(1))
-        if nex: movies.append(('', nex[0][0], '',
-                               'http://www.youku.com{0}'.format(nex[0][1])))
+        if nex:
+            movies.append(('', nex[0][0], '',
+                           'http://www.youku.com{0}'.format(nex[0][1])))
         cpg = re.findall(r'class="current">.*?>(\d+)<', pagestr.group(1))
         tpg = re.findall(r'class="pass".*?>(\d+)<', pagestr.group(1), re.S)
 
-        #add fliter item
+        # add fliter item
         pagetitle = '【第{0}页/共{1}页】【[COLOR FFFF0000]过滤条件选择)[/COLOR]】'
         movies.insert(0, ('', pagetitle.format(cpg[0], tpg[0] if tpg else '1'),
                           '', '{0}change'.format(url)))
     maptuple = (('olist', 'showmovie'), ('showlist', 'showmovie'),
                 ('show_page', 'showepisode'), ('v_show/', 'playmovie'))
     menus = []
-    #0 is thunmnailimg, 1 is title, 2 is status, 3 is url
+    # 0 is thunmnailimg, 1 is title, 2 is status, 3 is url
     for seq, m in enumerate(movies):
         routeaddr = filter(lambda x: x[0] in m[3], maptuple)
         menus.append({
             'label': '{0}. {1}【{2}】'.format(seq, m[1], m[2]).decode(
                 'utf-8') if m[0] else m[1].decode('utf-8'),
-            'path': plugin.url_for(routeaddr[0][1] ,url=m[3]),
+            'path': plugin.url_for(routeaddr[0][1], url=m[3]),
             'thumbnail': m[0],
         })
     epcache[url] = menus
     return menus
+
 
 @plugin.route('/episodes/<url>')
 def showepisode(url):
     """
     show episodes list
     """
-    if url in epcache: return epcache[url]
+    if url in epcache:
+        return epcache[url]
     result = _http(url)
     episodestr = re.search(r'id="episode_wrap">(.*?)<div id="point_wrap',
                            result, re.S)
     patt = re.compile(r'(http://v.youku.com/v_show/.*?.html)".*?>([^<]+?)</a')
     episodes = patt.findall(episodestr.group(1))
 
-    #some catalog not episode, e.g. most movie
+    # some catalog not episode, e.g. most movie
     if not episodes:
         playurl = re.search(r'class="btnplay" href="(.*?)"', result)
         if not playurl:
@@ -248,13 +269,13 @@ def showepisode(url):
         elists = re.findall(r'<li data="(reload_\d+)" >', result)
         epiurlpart = url.replace('page', 'episode')
 
-        #httplib can keepalive
+        # httplib can keepalive
         conn = httplib.HTTPConnection(epiurlpart.split('/')[2])
         for elist in elists:
             epiurl = epiurlpart + '?divid={0}'.format(elist)
             conn.request('GET', '/%s' % '/'.join(epiurl.split('/')[3:]))
             result = conn.getresponse().read()
-            #result = _http(epiurl)
+            # result = _http(epiurl)
             epimore = patt.findall(result)
             episodes.extend(epimore)
         conn.close()
@@ -265,6 +286,7 @@ def showepisode(url):
             } for episode in episodes]
         epcache[url] = menus
         return menus
+
 
 @plugin.route('/play/<url>')
 @plugin.route('/play/<url>/<source>', name='playsearch')
@@ -283,10 +305,12 @@ def playmovie(url, source='youku'):
         xbmcgui.Dialog().ok(
             '提示框', '不支持的播放源,目前支持youku/sohu/qq/iqiyi/pps/letv/tudou')
         return
-    if 'cancel' in movurl: return
-    listitem=xbmcgui.ListItem()
+    if 'cancel' in movurl:
+        return
+    listitem = xbmcgui.ListItem()
     listitem.setInfo(type="Video", infoLabels={'Title': 'c'})
     xbmc.Player().play(movurl, listitem)
+
 
 @plugin.route('/clscache')
 def clscache():
@@ -295,6 +319,7 @@ def clscache():
     xbmcgui.Dialog().ok(
         '提示框', '清除成功')
     return
+
 
 def _http(url):
     """
@@ -320,7 +345,7 @@ class PlayUtil(object):
     def __init__(self, url, source='youku'):
         self.url = url
         self.source = source
-        dialog = xbmcgui.Dialog()
+        xbmcgui.Dialog()
 
     def notsup(self):
         return 'not support'
@@ -328,34 +353,37 @@ class PlayUtil(object):
     def youku(self):
         stypes = OrderedDict((('1080P', 'hd3'), ('超清', 'hd2'),
                               ('高清', 'mp4'), ('标清', 'flv')))
-        #get movie metadata (json format)
+        # get movie metadata (json format)
         vid = self.url[-18:-5]
-        moviesurl="http://v.youku.com/player/getPlayList/VideoIDS/{0}/ctype/12/ev/1".format(
-            vid)
+        moviesurl = ('http://v.youku.com/player/getPlayList/VideoIDS/{0}'
+                     '/Pf/4/ctype/12/ev/1').format(vid)
         result = _http(moviesurl)
-        movinfo = json.loads(result.replace('\r\n',''))
+        movinfo = json.loads(result.replace('\r\n', ''))
         movdat = movinfo['data'][0]
         streamfids = movdat['streamfileids']
         video_id = movdat['videoid']
+        print video_id
         stype = 'flv'
 
         # user select streamtype
         if len(streamfids) > 1:
-            selstypes = [k for k,v in stypes.iteritems() if v in streamfids]
+            selstypes = [k for k, v in stypes.iteritems() if v in streamfids]
             selitem = dialog.select('清晰度', selstypes)
-            if selitem is -1: return 'cancle'
+            if selitem is -1:
+                return 'cancle'
             stype = stypes[selstypes[selitem]]
 
-        #stream file format type is mp4 or flv
-        ftype = 'mp4' if stype in 'mp4' else 'flv'
+        # stream file format type is mp4 or flv
+        # ftype = 'mp4' if stype in 'mp4' else 'flv'
         fileid = self._getfileid(streamfids[stype], int(movdat['seed']))
+        print fileid
         new_ep, token, sid = self._calc_ep2(video_id, movdat['ep'])
         query = urllib.urlencode(dict(
             vid=video_id, ts=int(time.time()), keyframe=1, type=stype,
             ep=new_ep, oip=movdat['ip'], ctype=12, ev=1, token=token, sid=sid,
         ))
         movurl = 'http://pl.youku.com/playlist/m3u8?' + query
-        #movurl = _http(url)
+        # movurl = _http(url)
         # movsegs = movdat['segs'][stype]
         # rooturl = 'http://k.youku.com/player/getFlvPath/sid/00_00/st'
         # segurls = []
@@ -370,10 +398,18 @@ class PlayUtil(object):
         #     rsegurl = rsp.geturl()
         #     segurls.append(rsegurl)
         # movurl = 'stack://{0}'.format(' , '.join(segurls))
-        m3p8 = _http(movurl)
-        segurls = re.findall('(http://.*)\?', m3p8)
+        m3u8 = _http(movurl)
+        print m3u8
+        segurls = re.findall('(http://.*)\?', m3u8)
+        lens = re.findall('EXTINF:([\d\.]+),', m3u8)
+        b = 0
+        for a in lens:
+            b = b + float(a)
+        print b
+        print segurls
         seen = set()
         segurls = [x for x in segurls if x not in seen and not seen.add(x)]
+        print segurls
         movurl = 'stack://{0}'.format(' , '.join(segurls))
         return movurl
 
@@ -384,7 +420,8 @@ class PlayUtil(object):
             'http://hot.vrs.sohu.com/vrs_flash.action?vid=%s' % vid))
         qtyps = [('超清', 'superVid'), ('高清', 'highVid'), ('流畅', 'norVid')]
         sel = dialog.select('清晰度', [q[0] for q in qtyps])
-        if sel is -1: return 'cancel'
+        if sel is -1:
+            return 'cancel'
         qtyp = data['data'][qtyps[sel][1]]
         if qtyp and qtyp != vid:
             data = json.loads(_http(
@@ -393,8 +430,8 @@ class PlayUtil(object):
         prot = data['prot']
         urls = []
         data = data['data']
-        title = data['tvName']
-        size = sum(data['clipsBytes'])
+        # title = data['tvName']
+        # size = sum(data['clipsBytes'])
         for file, new in zip(data['clipsURL'], data['su']):
             urls.append(self.real_url(host, prot, file, new))
         assert data['clipsURL'][0].endswith('.mp4')
@@ -410,9 +447,9 @@ class PlayUtil(object):
 
         from xml.dom.minidom import parseString
         doc = parseString(info_xml)
-        title = doc.getElementsByTagName('title')[0].firstChild.nodeValue
-        size = int(doc.getElementsByTagName('totalBytes')[0].
-                   firstChild.nodeValue)
+        # title = doc.getElementsByTagName('title')[0].firstChild.nodeValue
+        # size = int(doc.getElementsByTagName('totalBytes')[0].
+        #           firstChild.nodeValue)
         urls = [n.firstChild.nodeValue
                 for n in doc.getElementsByTagName('file')]
         assert urls[0].endswith('.f4v'), urls[0]
@@ -433,7 +470,7 @@ class PlayUtil(object):
         vid = self.url[:-5].split('_')[1]
         html = _http(
             'http://dp.ppstream.com/get_play_url_cdn.php?sid={0}{1}'.format(
-                vid,'&flash_type=1'))
+                vid, '&flash_type=1'))
         movstr = re.compile(r'(http://.*?)\?hd=').search(html).group(1)
         return movstr
 
@@ -442,7 +479,6 @@ class PlayUtil(object):
         vcode = re.search(r'vcode\s*[:=]\s*\'([^\']+)\'', html).group(1)
         self.url = 'http://v.youku.com/v_show/id_{0}.html'.format(vcode)
         self.youku()
-
 
     def letv(self):
         vid = self.url.split('/')[-1][:-5]
@@ -454,10 +490,11 @@ class PlayUtil(object):
         qtyps = [('1080P', '1080p'), ('超清', '720p'), ('高清', '1300'),
                  ('标清', '1000'), ('流畅', '350')]
         sel = dialog.select('清晰度', [q[0] for q in qtyps])
-        if sel is -1: return 'cancel'
+        if sel is -1:
+            return 'cancel'
         sinfo = streams[qtyps[sel][1]]
         resp = urllib2.urlopen('http://g3.letv.cn/{0}'.format(
-            sinfo[2].replace('\\','')), timeout=30)
+            sinfo[2].replace('\\', '')), timeout=30)
         movurl = resp.geturl()
         return movurl
 
@@ -469,30 +506,32 @@ class PlayUtil(object):
         infoj = json.loads(vinfo.split('=')[1][:-1])
         qtyps = OrderedDict((
             ('1080P', 'fhd'), ('超清', 'shd'), ('高清', 'hd'), ('标清', 'sd')))
-        #python 2.7 syntax
-        #vtyps = {v['name']:v['id'] for v in infoj['fl']['fi']}
-        vtyps = dict((v['name'],v['id']) for v in infoj['fl']['fi'])
+        # python 2.7 syntax
+        # vtyps = {v['name']:v['id'] for v in infoj['fl']['fi']}
+        vtyps = dict((v['name'], v['id']) for v in infoj['fl']['fi'])
         qtypid = vtyps['sd']
-        sels = [k for k,v in qtyps.iteritems() if v in vtyps]
+        sels = [k for k, v in qtyps.iteritems() if v in vtyps]
         sel = dialog.select('清晰度', sels)
         surls = []
         urlpre = infoj['vl']['vi'][0]['ul']['ui'][-1]['url']
-        if sel is -1: return 'cancel'
+        if sel is -1:
+            return 'cancel'
         qtypid = vtyps[qtyps[sels[sel]]]
 
         for i in range(1, int(infoj['vl']['vi'][0]['cl']['fc'])+1):
-            fn = '%s.p%s.%s.mp4' % (vid, qtypid%10000, str(i))
+            fn = '%s.p%s.%s.mp4' % (vid, qtypid % 10000, str(i))
             sinfo = _http(
                 '{0}getkey?format={1}&filename={2}&vid={3}&otype=json'.format(
                     murl, qtypid, fn, vid))
             skey = json.loads(sinfo.split('=')[1][:-1])['key']
             surl = urllib2.urlopen(
                 '%s%s?vkey=%s' % (urlpre, fn, skey), timeout=30).geturl()
-            if not surl: break
+            if not surl:
+                break
             surls.append(surl)
         movurl = 'stack://{0}'.format(' , '.join(surls))
         return movurl
-        #movurl = 'http://vsrc.store.qq.com/%s.flv' % vid
+        # movurl = 'http://vsrc.store.qq.com/%s.flv' % vid
 
     def _getfileid(self, streamid, seed):
         """
@@ -507,14 +546,14 @@ class PlayUtil(object):
         mixed = []
         for i in range(len(source)):
             seed = (seed * 211 + 30031) % 65536
-            index =  seed * len(source) / 65536
+            index = seed * len(source) / 65536
             mixed.append(source[index])
-            source = source.replace(source[index],"")
+            source = source.replace(source[index], "")
         mixstr = ''.join(mixed)
         attr = streamid[:-1].split('*')
         res = ""
         for item in attr:
-            res +=  mixstr[int(item)]
+            res += mixstr[int(item)]
         return res
 
     def trans_e(self, a, c):
@@ -558,7 +597,6 @@ class PlayUtil(object):
             b.append(str(v))
 
         return ''.join(b)
-
 
     # array_1 = [
     #     19, 1, 4, 7, 30, 14, 28, 8, 24, 17, 6, 35,
